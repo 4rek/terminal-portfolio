@@ -490,12 +490,20 @@ func (m model) viewProjects() string {
 
 		if i == m.expanded {
 			desc := s.cardDescription.MarginLeft(4).Render(project.Description)
+
+			label := m.renderer.NewStyle().
+				Foreground(colorDimmed).
+				Width(8).
+				Render("stack")
+			separator := m.renderer.NewStyle().Foreground(colorBorder).Render("  •  ")
 			var tags []string
 			for _, t := range project.Tags {
-				tags = append(tags, s.tagProject.Render("[ "+t+" ]"))
+				tags = append(tags, s.tagProject.Render(t))
 			}
-			tagLine := m.renderer.NewStyle().MarginLeft(4).Render(lipgloss.JoinHorizontal(lipgloss.Bottom, tags...))
+			tagLine := m.renderer.NewStyle().MarginLeft(4).Render(label + strings.Join(tags, separator))
+
 			rows = append(rows, desc)
+			rows = append(rows, "")
 			rows = append(rows, tagLine)
 			rows = append(rows, "")
 		}
