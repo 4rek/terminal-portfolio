@@ -1,0 +1,17 @@
+[Unit]
+Description=Terminal Portfolio (SSH TUI)
+After=network.target
+
+[Service]
+Type=simple
+User=arek
+WorkingDirectory=/home/arek
+ExecStart=/home/arek/terminal-interface --port 22 --host-key /home/arek/.ssh/terminal-interface-host-key
+Restart=always
+RestartSec=5
+
+# Allow binding to port 22 without running as root (set via setcap during deploy)
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

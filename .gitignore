@@ -1,0 +1,14 @@
+# Build artifacts
+terminal-interface
+terminal-interface-linux-*
+*.exe
+
+# Runtime host key (generated on first run)
+.ssh/
+
+# IDE
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
