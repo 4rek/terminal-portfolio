@@ -32,17 +32,33 @@ GOOS=linux GOARCH="$DEPLOY_ARCH" CGO_ENABLED=0 go build -ldflags="-s -w" -o "$BI
 echo "==> Uploading to $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH"
 scp -P "$DEPLOY_PORT" "$BINARY_NAME" "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH.new"
 
-echo "==> Swapping binary and restarting service"
+echo "==> Installing and restarting service"
+# Remote script runs under `set -euo pipefail`, so any failing step aborts
+# the deploy and leaves the current binary in place.
 ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" bash <<EOF
 set -euo pipefail
+
 chmod +x "$DEPLOY_PATH.new"
+
+# Allow the binary to bind to privileged ports (<1024) without running as root.
 sudo setcap 'cap_net_bind_service=+ep' "$DEPLOY_PATH.new"
+
+# Atomically swap the new binary into place.
 mv "$DEPLOY_PATH.new" "$DEPLOY_PATH"
+
 sudo systemctl restart "$SERVICE_NAME"
-sudo systemctl status "$SERVICE_NAME" --no-pager -l | head -20
+
+# Give the service a moment to start, then verify it's running.
+sleep 1
+if ! sudo systemctl is-active --quiet "$SERVICE_NAME"; then
+    echo "Service failed to start. Recent logs:"
+    sudo journalctl -u "$SERVICE_NAME" -n 20 --no-pager
+    exit 1
+fi
+
+sudo systemctl status "$SERVICE_NAME" --no-pager -l | head -10
 EOF
 
-echo "==> Cleaning up local build artifact"
 rm "$BINARY_NAME"
 
 echo "==> Done. Test with: ssh $DEPLOY_HOST"

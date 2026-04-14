@@ -2,23 +2,21 @@ package main
 
 import "github.com/charmbracelet/lipgloss"
 
-// Warm palette inspired by the website
+// Warm palette inspired by the companion website.
 var (
 	colorPrimary    = lipgloss.Color("#C4A882")
 	colorForeground = lipgloss.Color("#E8E0D4")
 	colorMuted      = lipgloss.Color("#8A8078")
 	colorDimmed     = lipgloss.Color("#5C564F")
-	colorBackground = lipgloss.Color("#1C1A17")
-	colorCard       = lipgloss.Color("#252220")
 	colorBorder     = lipgloss.Color("#3A3632")
 
-	// Tag colors by category
+	// Tag colors, one per stack category.
 	colorFrontend = lipgloss.Color("#E8B87A")
-	colorBackendC = lipgloss.Color("#82B8A8")
-	colorToolsC   = lipgloss.Color("#A88EC4")
+	colorBackend  = lipgloss.Color("#82B8A8")
+	colorTools    = lipgloss.Color("#A88EC4")
 )
 
-func newStyles(width, height int, r *lipgloss.Renderer) styles {
+func newStyles(width int, r *lipgloss.Renderer) styles {
 	contentWidth := min(width-8, 72)
 
 	return styles{
@@ -84,10 +82,10 @@ func newStyles(width, height int, r *lipgloss.Renderer) styles {
 			Foreground(colorFrontend),
 
 		tagBackend: r.NewStyle().
-			Foreground(colorBackendC),
+			Foreground(colorBackend),
 
 		tagTools: r.NewStyle().
-			Foreground(colorToolsC),
+			Foreground(colorTools),
 
 		tagProject: r.NewStyle().
 			Foreground(colorPrimary),

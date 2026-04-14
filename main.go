@@ -6,8 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -20,6 +22,21 @@ import (
 )
 
 var tabNames = []string{"about", "experience", "stack", "projects", "contact"}
+
+// Layout constants control the vertical composition of the main view.
+const (
+	layoutTopPadding    = 2
+	layoutGapAfterTabs  = 2
+	layoutBottomPadding = 1
+	// Offset from the bottom where the clipboard notification is rendered.
+	clipboardNotifOffset = 4
+)
+
+// Interaction constants.
+const (
+	clipboardNotificationTTL = 3 * time.Second
+	konamiBufferMaxLen       = 40
+)
 
 type tab int
 
@@ -55,7 +72,7 @@ func initialModel(renderer *lipgloss.Renderer) model {
 		height:    24,
 		activeTab: tabAbout,
 		renderer:  renderer,
-		styles:    newStyles(80, 24, renderer),
+		styles:    newStyles(80, renderer),
 		expanded:  -1,
 		booting:   true,
 		boot:      initialBootModel(renderer),
@@ -71,7 +88,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if wsm, ok := msg.(tea.WindowSizeMsg); ok {
 			m.width = wsm.Width
 			m.height = wsm.Height
-			m.styles = newStyles(wsm.Width, wsm.Height, m.renderer)
+			m.styles = newStyles(wsm.Width, m.renderer)
 			m.boot.width = wsm.Width
 			m.boot.height = wsm.Height
 		}
@@ -88,7 +105,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.styles = newStyles(msg.Width, msg.Height, m.renderer)
+		m.styles = newStyles(msg.Width, m.renderer)
 		return m, nil
 
 	case clearClipboardMsg:
@@ -101,8 +118,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Easter egg tracking
 		m.konamiBuffer += key
-		if len(m.konamiBuffer) > 40 {
-			m.konamiBuffer = m.konamiBuffer[len(m.konamiBuffer)-40:]
+		if len(m.konamiBuffer) > konamiBufferMaxLen {
+			m.konamiBuffer = m.konamiBuffer[len(m.konamiBuffer)-konamiBufferMaxLen:]
 		}
 		if strings.Contains(m.konamiBuffer, "upupdowndownleftrightleftrightba") {
 			m.showEasterEgg = true
@@ -169,7 +186,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				c := contacts[m.cursor]
 				m.clipboardLabel = c.Label
 				m.clipboardURL = c.URL
-				return m, clearClipboardAfter(3 * time.Second)
+				return m, clearClipboardAfter(clipboardNotificationTTL)
 			}
 			m = m.toggleExpand()
 			return m, nil
@@ -263,56 +280,44 @@ func (m model) View() string {
 	contentCentered := lipgloss.PlaceHorizontal(m.width, lipgloss.Center, content)
 	statusCentered := lipgloss.PlaceHorizontal(m.width, lipgloss.Center, status)
 
-	// Fixed layout:
-	// - 2 blank lines from top
-	// - tabs
-	// - 2 blank lines
-	// - content (fills remaining space)
-	// - status bar pinned to bottom with 1 line padding
-	topPad := 2
-	gapAfterTabs := 2
-	bottomPad := 1
-
+	// The view has a fixed vertical composition: top padding, tabs, gap,
+	// content area (fills remaining space), and status bar at the bottom.
 	tabsHeight := lipgloss.Height(tabsCentered)
 	statusHeight := lipgloss.Height(statusCentered)
 
-	// Calculate content area height (fixed regardless of content)
-	contentAreaHeight := m.height - topPad - tabsHeight - gapAfterTabs - statusHeight - bottomPad
+	contentAreaHeight := m.height - layoutTopPadding - tabsHeight - layoutGapAfterTabs - statusHeight - layoutBottomPadding
 	if contentAreaHeight < 1 {
 		contentAreaHeight = 1
 	}
 
-	// Place content within its fixed-height area, aligned to top
 	contentArea := lipgloss.Place(
 		m.width, contentAreaHeight,
 		lipgloss.Center, lipgloss.Top,
 		contentCentered,
 	)
 
-	var sections []string
-	sections = append(sections, strings.Repeat("\n", topPad))
-	sections = append(sections, tabsCentered)
-	sections = append(sections, strings.Repeat("\n", gapAfterTabs))
-	sections = append(sections, contentArea)
-	sections = append(sections, statusCentered)
+	sections := []string{
+		strings.Repeat("\n", layoutTopPadding),
+		tabsCentered,
+		strings.Repeat("\n", layoutGapAfterTabs),
+		contentArea,
+		statusCentered,
+	}
 
 	full := strings.Join(sections, "\n")
 
 	out := lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, full)
 
-	// Overlay "copied" notification
+	// Overlay the "copied" notification above the status bar, and emit
+	// OSC 52 so the user's terminal puts the URL on their clipboard.
 	if m.clipboardURL != "" {
-		notif := m.renderClipboardNotification()
-		notifCentered := lipgloss.PlaceHorizontal(m.width, lipgloss.Center, notif)
-		// Replace line near the bottom (above status bar) with the notification
+		notif := lipgloss.PlaceHorizontal(m.width, lipgloss.Center, m.renderClipboardNotification())
 		lines := strings.Split(out, "\n")
-		notifLine := m.height - 4
+		notifLine := m.height - clipboardNotifOffset
 		if notifLine > 0 && notifLine < len(lines) {
-			lines[notifLine] = notifCentered
+			lines[notifLine] = notif
 		}
-		out = strings.Join(lines, "\n")
-		// Prepend OSC 52 so the terminal copies the URL to clipboard
-		out = osc52Copy(m.clipboardURL) + out
+		out = osc52Copy(m.clipboardURL) + strings.Join(lines, "\n")
 	}
 
 	return out
@@ -421,8 +426,6 @@ func (m model) viewExperience() string {
 }
 
 func (m model) viewStack() string {
-	s := m.styles
-	_ = s
 	var rows []string
 
 	contentWidth := min(m.width-8, 72)
@@ -597,7 +600,7 @@ func (m model) viewEasterEgg() string {
 		m.width, m.height,
 		lipgloss.Center, lipgloss.Center,
 		style.Render(coffee),
-			)
+	)
 }
 
 func main() {
@@ -606,11 +609,8 @@ func main() {
 	hostKey := flag.String("host-key", ".ssh/id_ed25519", "path to SSH host key (generated on first run)")
 	flag.Parse()
 
-	// Format address correctly for IPv6 (needs brackets)
-	addr := fmt.Sprintf("[%s]:%d", *host, *port)
-	if !strings.Contains(*host, ":") {
-		addr = fmt.Sprintf("%s:%d", *host, *port)
-	}
+	// net.JoinHostPort handles IPv6 bracketing and edge cases correctly.
+	addr := net.JoinHostPort(*host, strconv.Itoa(*port))
 
 	srv, err := wish.NewServer(
 		wish.WithAddress(addr),
