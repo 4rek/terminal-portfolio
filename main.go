@@ -71,7 +71,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if wsm, ok := msg.(tea.WindowSizeMsg); ok {
 			m.width = wsm.Width
 			m.height = wsm.Height
-			m.styles = newStyles(wsm.Width, wsm.Height)
+			m.styles = newStyles(wsm.Width, wsm.Height, m.renderer)
 			m.boot.width = wsm.Width
 			m.boot.height = wsm.Height
 		}
@@ -357,7 +357,7 @@ func (m model) viewAbout() string {
 
 	// Name and title
 	name := s.heading.Render("Arkadiusz Juszczyk")
-	title := lipgloss.NewStyle().Foreground(colorMuted).Render("  tech lead & product developer")
+	title := m.renderer.NewStyle().Foreground(colorMuted).Render("  tech lead & product developer")
 	sections = append(sections, name+title)
 	sections = append(sections, "")
 
@@ -388,8 +388,8 @@ func (m model) viewExperience() string {
 	periodWidth := 16
 	leftWidth := contentWidth - periodWidth
 
-	leftStyle := lipgloss.NewStyle().Width(leftWidth)
-	periodStyle := lipgloss.NewStyle().
+	leftStyle := m.renderer.NewStyle().Width(leftWidth)
+	periodStyle := m.renderer.NewStyle().
 		Foreground(colorDimmed).
 		Width(periodWidth).
 		Align(lipgloss.Right)
@@ -428,14 +428,14 @@ func (m model) viewStack() string {
 	contentWidth := min(m.width-8, 72)
 	labelWidth := 12
 
-	labelStyle := lipgloss.NewStyle().
+	labelStyle := m.renderer.NewStyle().
 		Foreground(colorDimmed).
 		Width(labelWidth)
 
-	tagsStyle := lipgloss.NewStyle().
+	tagsStyle := m.renderer.NewStyle().
 		Width(contentWidth - labelWidth)
 
-	separator := lipgloss.NewStyle().Foreground(colorBorder).Render(" · ")
+	separator := m.renderer.NewStyle().Foreground(colorBorder).Render(" · ")
 
 	renderGroup := func(label string, items []string, tagStyle lipgloss.Style) string {
 		var colored []string
@@ -466,8 +466,8 @@ func (m model) viewProjects() string {
 	yearWidth := 8
 	leftWidth := contentWidth - yearWidth
 
-	leftStyle := lipgloss.NewStyle().Width(leftWidth)
-	yearStyle := lipgloss.NewStyle().
+	leftStyle := m.renderer.NewStyle().Width(leftWidth)
+	yearStyle := m.renderer.NewStyle().
 		Foreground(colorDimmed).
 		Width(yearWidth).
 		Align(lipgloss.Right)
@@ -494,7 +494,7 @@ func (m model) viewProjects() string {
 			for _, t := range project.Tags {
 				tags = append(tags, s.tagProject.Render("[ "+t+" ]"))
 			}
-			tagLine := lipgloss.NewStyle().MarginLeft(4).Render(lipgloss.JoinHorizontal(lipgloss.Bottom, tags...))
+			tagLine := m.renderer.NewStyle().MarginLeft(4).Render(lipgloss.JoinHorizontal(lipgloss.Bottom, tags...))
 			rows = append(rows, desc)
 			rows = append(rows, tagLine)
 			rows = append(rows, "")
@@ -556,11 +556,11 @@ func (m model) viewStatusBar() string {
 }
 
 func (m model) renderClipboardNotification() string {
-	label := lipgloss.NewStyle().
+	label := m.renderer.NewStyle().
 		Foreground(colorPrimary).
 		Bold(true).
 		Render("✓ copied")
-	url := lipgloss.NewStyle().
+	url := m.renderer.NewStyle().
 		Foreground(colorMuted).
 		Render(m.clipboardURL)
 	return label + "  " + url
@@ -580,7 +580,7 @@ func (m model) viewEasterEgg() string {
 
   press any key to go back.
 `
-	style := lipgloss.NewStyle().
+	style := m.renderer.NewStyle().
 		Foreground(colorPrimary).
 		Align(lipgloss.Center).
 		Width(m.width)
